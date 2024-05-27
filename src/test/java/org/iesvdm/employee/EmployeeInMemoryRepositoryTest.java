@@ -36,7 +36,14 @@ public class EmployeeInMemoryRepositoryTest {
 	 */
 	@Test
 	public void testEmployeeRepositoryFindAll() {
+		Employee employee1 = new Employee("Paco sanz", 2500.0);
+		Employee employee2 = new Employee("Pedro Picapiedra", 3500.0);
 
+		employees.addAll(asList(employee1, employee2));
+		List<Employee> empleados = employeeRepository.findAll();
+
+		assertThat(empleados).hasSize(2);
+		assertThat(empleados).contains(employee1, employee2);
 	}
 
 	/**
@@ -47,7 +54,13 @@ public class EmployeeInMemoryRepositoryTest {
 	 */
 	@Test
 	public void testEmployeeRepositorySaveNewEmployee() {
+		Employee employee1 = new Employee("Paco sanz", 2500.0);
 
+		employeeRepository.save(employee1);
+		List<Employee> empleados = employeeRepository.findAll();
+
+		assertThat(empleados).hasSize(1);
+		assertThat(empleados).contains(employee1);
 	}
 
 	/**
@@ -61,6 +74,18 @@ public class EmployeeInMemoryRepositoryTest {
 	 */
 	@Test
 	public void testEmployeeRepositorySaveExistingEmployee() {
+		Employee employee1 = new Employee("Paco sanz", 2500.0);
+		Employee employee2 = new Employee("Pedro Picapiedra", 3500.0);
 
+		employees.addAll(asList(employee1, employee2));
+
+		employee1.setSalary(4000.0);
+		employeeRepository.save(employee1);
+
+		List<Employee> empleados = employeeRepository.findAll();
+
+		assertThat(empleados).hasSize(2);
+		assertThat(empleados).containsExactly(employee1, employee2);
+		assertThat(empleados.getFirst().getSalary()).isEqualTo(4000.0);
 	}
 }

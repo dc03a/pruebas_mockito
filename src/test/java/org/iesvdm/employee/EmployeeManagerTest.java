@@ -8,12 +8,10 @@ import static org.mockito.Mockito.*;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Captor;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
-import org.mockito.Spy;
+import org.mockito.*;
+
+import java.util.Collections;
+import java.util.List;
 
 public class EmployeeManagerTest {
 
@@ -26,6 +24,9 @@ public class EmployeeManagerTest {
 	/**
 	 * Explica en este comentario que efecto tiene
 	 * esta anotacion @InjectMocks
+	 *
+	 * Esto lo que hace es autoinstanciar los mocks y spies y
+	 * los injecta directamente en esa clase
 	 */
 	@InjectMocks
 	private EmployeeManager employeeManager;
@@ -56,7 +57,12 @@ public class EmployeeManagerTest {
 	 */
 	@Test
 	public void testPayEmployeesReturnZeroWhenNoEmployeesArePresent() {
+		when(employeeRepository.findAll()).thenReturn(Collections.emptyList());
+		int empleadosQueHanCobrado = employeeManager.payEmployees();
 
+		assertThat(empleadosQueHanCobrado).isEqualTo(0);
+		verify(employeeRepository).findAll();
+		verifyNoInteractions(bankService);
 	}
 
 	/**
@@ -71,7 +77,14 @@ public class EmployeeManagerTest {
 	 */
 	@Test
 	public void testPayEmployeesReturnOneWhenOneEmployeeIsPresentAndBankServicePayPaysThatEmployee() {
+		Employee employee = new Employee("1", 3000.0);
+		List<Employee> empleados = asList(employee);
 
+		when(employeeRepository.findAll()).thenReturn(empleados);
+		int empleadosQueHanCobrado = employeeManager.payEmployees();
+		assertThat(empleadosQueHanCobrado).isEqualTo(1);
+		verify(employeeRepository).findAll();
+		verify(bankService).pay(employee.getId(), employee.getSalary());
 	}
 
 
@@ -88,7 +101,14 @@ public class EmployeeManagerTest {
 	 */
 	@Test
 	public void testPayEmployeesWhenSeveralEmployeeArePresent() {
+		Employee employee1 = new Employee("1", 3000.0);
+		Employee employee2 = new Employee("2", 1500.0);
+		List<Employee> empleados = asList(employee1, employee2);
 
+		when(employeeRepository.findAll()).thenReturn(empleados);
+		assertThat(employeeManager.payEmployees()).isEqualTo(2);
+		verify(bankService).pay("2", 1500.0);
+		verify(bankService).pay("1", 3000.0);
 	}
 
 	/**
@@ -103,7 +123,18 @@ public class EmployeeManagerTest {
 	 */
 	@Test
 	public void testPayEmployeesInOrderWhenSeveralEmployeeArePresent() {
+		Employee employee1 = new Employee("1", 3000.0);
+		Employee employee2 = new Employee("2", 1500.0);
+		List<Employee> empleados = asList(employee1, employee2);
 
+		when(employeeRepository.findAll()).thenReturn(empleados);
+		assertThat(employeeManager.payEmployees()).isEqualTo(2);
+
+		InOrder enOrden = inOrder(employeeRepository, bankService);
+		enOrden.verify(bankService).pay("1", 3000.0);
+		enOrden.verify(bankService).pay("2", 1500.0);
+		verify(bankService,times(1)).pay("1", 3000.0);
+		verifyNoInteractions(bankService);
 	}
 
 	/**
@@ -116,7 +147,15 @@ public class EmployeeManagerTest {
 	 */
 	@Test
 	public void testExampleOfInOrderWithTwoMocks() {
+		Employee employee1 = new Employee("1", 3000.0);
+		Employee employee2 = new Employee("2", 1500.0);
+		List<Employee> empleados = asList(employee1, employee2);
 
+		when(employeeRepository.findAll()).thenReturn(empleados);
+
+		InOrder inOrden = inOrder(employeeRepository, bankService);
+		inOrden.verify(employeeRepository).findAll();
+		inOrden.verify(bankService).pay("1", 3000.0);
 	}
 
 
@@ -135,7 +174,23 @@ public class EmployeeManagerTest {
 	 */
 	@Test
 	public void testExampleOfArgumentCaptor() {
+		Employee employee1 = new Employee("1", 3000.0);
+		Employee employee2 = new Employee("2", 1500.0);
+		List<Employee> empleados = asList(employee1, employee2);
+		when(employeeRepository.findAll()).thenReturn(empleados);
+		assertThat(employeeManager.payEmployees()).isEqualTo(2);
+		idCaptor.capture();
+		amountCaptor.capture();
 
+		assertThat(idCaptor.getAllValues()).hasSize(2);
+		assertThat(idCaptor.getAllValues().getFirst()).isEqualTo("1");
+		assertThat(idCaptor.getAllValues().get(1)).isEqualTo("2");
+
+		assertThat(amountCaptor.getAllValues()).hasSize(2);
+		assertThat(amountCaptor.getAllValues().getFirst()).isEqualTo(3000.0);
+		assertThat(amountCaptor.getAllValues().get(1)).isEqualTo(1500.0);
+
+		verifyNoMoreInteractions(bankService);
 	}
 
 	/**
@@ -149,7 +204,13 @@ public class EmployeeManagerTest {
 	 */
 	@Test
 	public void testEmployeeSetPaidIsCalledAfterPaying() {
+		when(employeeRepository.findAll()).thenReturn(Collections.singletonList(toBePaid));
 
+		employeeManager.payEmployees();
+
+		verify(bankService).pay(eq(toBePaid.getId()), eq(toBePaid.getSalary()));
+
+		verify(toBePaid).setPaid(true);
 	}
 
 
@@ -167,7 +228,13 @@ public class EmployeeManagerTest {
 	 */
 	@Test
 	public void testPayEmployeesWhenBankServiceThrowsException() {
+		when(employeeRepository.findAll()).thenReturn(Collections.singletonList(notToBePaid));
 
+		doThrow(new RuntimeException()).when(bankService).pay(anyString(), anyDouble());
+		int result = employeeManager.payEmployees();
+		assert result == 0;
+
+		verify(notToBePaid).setPaid(false);
 	}
 
 	/**
@@ -185,6 +252,18 @@ public class EmployeeManagerTest {
 	 */
 	@Test
 	public void testOtherEmployeesArePaidWhenBankServiceThrowsException() {
+		List<Employee> employees = List.of(notToBePaid, toBePaid);
+		when(employeeRepository.findAll()).thenReturn(employees);
+
+		doThrow(new RuntimeException()).doNothing().when(bankService).pay(anyString(), anyDouble());
+
+		int result = employeeManager.payEmployees();
+
+		assert result == 1;
+
+		verify(notToBePaid).setPaid(false);
+		verify(toBePaid).setPaid(true);
+
 	}
 
 
@@ -204,7 +283,17 @@ public class EmployeeManagerTest {
 	 */
 	@Test
 	public void testArgumentMatcherExample() {
+		List<Employee> employees = List.of(notToBePaid, toBePaid);
+		when(employeeRepository.findAll()).thenReturn(employees);
 
+		doThrow(new RuntimeException()).doNothing().when(bankService).pay(
+				argThat(s -> s.equals("1")), anyDouble());
+
+		int result = employeeManager.payEmployees();
+		assert result == 1;
+
+		verify(notToBePaid).setPaid(false);
+		verify(toBePaid).setPaid(true);
 	}
 
 }
